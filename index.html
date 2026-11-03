@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Campus Lost and Found Management System - Report, track, and manage lost and found items on campus with secure collection verification.">
+    <title>Campus Lost &amp; Found | Management System</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <!-- ========== TOP NAVIGATION BAR ========== -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-brand" id="nav-brand">
+                <div class="brand-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </div>
+                <span class="brand-text">Campus Lost &amp; Found</span>
+            </div>
+            <div class="nav-links" id="nav-links">
+                <a href="#" class="nav-link active" data-page="dashboard" id="nav-dashboard">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+                    Dashboard
+                </a>
+                <a href="#" class="nav-link" data-page="report-lost" id="nav-report-lost">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    Report Lost
+                </a>
+                <a href="#" class="nav-link" data-page="report-found" id="nav-report-found">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Report Found
+                </a>
+                <a href="#" class="nav-link" data-page="collection-history" id="nav-history">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    History
+                </a>
+                <a href="#" class="nav-link organiser-link" data-page="organiser-login" id="nav-organiser">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    <span id="nav-organiser-text">Organiser</span>
+                </a>
+            </div>
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle navigation menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========== DEMO MODE BANNER ========== -->
+    <div class="demo-banner" id="demo-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span><strong>LOCAL DEMO MODE</strong> — Data is simulated and stored in browser memory. No AWS services are connected.</span>
+    </div>
+
+    <!-- ========== MAIN CONTENT AREA ========== -->
+    <main class="main-content" id="main-content">
+
+        <!-- ===== DASHBOARD PAGE ===== -->
+        <section class="page active" id="page-dashboard">
+            <!-- Summary Cards -->
+            <div class="section-header">
+                <h1>Dashboard</h1>
+                <p class="section-subtitle">Overview of all campus lost and found items</p>
+            </div>
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card stat-total" id="stat-total">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="count-total">0</span>
+                        <span class="stat-label">Total Items</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-lost" id="stat-lost">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="count-lost">0</span>
+                        <span class="stat-label">Lost Items</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-found" id="stat-found">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="count-found">0</span>
+                        <span class="stat-label">Found Items</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-collected" id="stat-collected">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="count-collected">0</span>
+                        <span class="stat-label">Collected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search and Filters -->
+            <div class="filters-bar" id="filters-bar">
+                <div class="search-box">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="search-input" placeholder="Search items by name..." aria-label="Search items">
+                </div>
+                <div class="filter-group">
+                    <select id="filter-category" aria-label="Filter by category">
+                        <option value="">All Categories</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Books & Stationery">Books &amp; Stationery</option>
+                        <option value="Clothing">Clothing</option>
+                        <option value="ID Cards & Documents">ID Cards &amp; Documents</option>
+                        <option value="Keys">Keys</option>
+                        <option value="Bags & Wallets">Bags &amp; Wallets</option>
+                        <option value="Sports Equipment">Sports Equipment</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <select id="filter-status" aria-label="Filter by status">
+                        <option value="">All Status</option>
+                        <option value="LOST">Lost</option>
+                        <option value="FOUND">Found</option>
+                    </select>
+                    <select id="filter-collection" aria-label="Filter by collection status">
+                        <option value="">All Collection</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="COLLECTED">Collected</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Item Cards Grid -->
+            <div class="items-grid" id="items-grid">
+                <!-- Dynamically populated -->
+            </div>
+            <div class="empty-state hidden" id="empty-state">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                <h3>No items found</h3>
+                <p>Try adjusting your search or filters, or report a new item.</p>
+            </div>
+            <div class="loading-state hidden" id="loading-state">
+                <div class="spinner"></div>
+                <p>Loading items...</p>
+            </div>
+        </section>
+
+        <!-- ===== REPORT LOST ITEM PAGE ===== -->
+        <section class="page" id="page-report-lost">
+            <div class="section-header">
+                <h1>Report a Lost Item</h1>
+                <p class="section-subtitle">Describe the item you've lost so others can help find it</p>
+            </div>
+            <form class="report-form" id="form-report-lost" novalidate>
+                <input type="hidden" name="reportType" value="LOST">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="lost-item-name">Item Name <span class="required">*</span></label>
+                        <input type="text" id="lost-item-name" name="itemName" placeholder="e.g. Blue Water Bottle" required maxlength="100">
+                        <span class="form-error" id="error-lost-item-name"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="lost-category">Category <span class="required">*</span></label>
+                        <select id="lost-category" name="category" required>
+                            <option value="">Select category</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Books & Stationery">Books &amp; Stationery</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="ID Cards & Documents">ID Cards &amp; Documents</option>
+                            <option value="Keys">Keys</option>
+                            <option value="Bags & Wallets">Bags &amp; Wallets</option>
+                            <option value="Sports Equipment">Sports Equipment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <span class="form-error" id="error-lost-category"></span>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="lost-description">Description <span class="required">*</span></label>
+                        <textarea id="lost-description" name="description" placeholder="Describe the item in detail — colour, brand, distinguishing marks..." required maxlength="500" rows="3"></textarea>
+                        <span class="form-error" id="error-lost-description"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="lost-location">Last Seen Location <span class="required">*</span></label>
+                        <input type="text" id="lost-location" name="location" placeholder="e.g. Library 2nd Floor" required maxlength="150">
+                        <span class="form-error" id="error-lost-location"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="lost-date">Date Lost <span class="required">*</span></label>
+                        <input type="date" id="lost-date" name="reportDate" required>
+                        <span class="form-error" id="error-lost-date"></span>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="lost-image">Upload Photo (optional)</label>
+                        <div class="file-upload-area" id="lost-upload-area">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                            <p>Drag &amp; drop or <span class="upload-link">browse</span></p>
+                            <small>JPG, PNG up to 5 MB</small>
+                            <input type="file" id="lost-image" name="image" accept="image/jpeg,image/png,image/webp" class="file-input">
+                        </div>
+                        <div class="image-preview hidden" id="lost-image-preview">
+                            <img id="lost-preview-img" alt="Preview">
+                            <button type="button" class="btn-remove-image" id="lost-remove-image" aria-label="Remove image">&times;</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="btn-submit-lost">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Report Lost Item
+                    </button>
+                    <button type="reset" class="btn btn-outline" id="btn-reset-lost">Clear Form</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- ===== REPORT FOUND ITEM PAGE ===== -->
+        <section class="page" id="page-report-found">
+            <div class="section-header">
+                <h1>Report a Found Item</h1>
+                <p class="section-subtitle">Help reunite someone with their belongings</p>
+            </div>
+            <form class="report-form" id="form-report-found" novalidate>
+                <input type="hidden" name="reportType" value="FOUND">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="found-item-name">Item Name <span class="required">*</span></label>
+                        <div class="suggestions-wrapper" id="found-suggestions-wrapper">
+                            <input type="text" id="found-item-name" name="itemName" placeholder="Start typing to see matching lost items..." required maxlength="100" autocomplete="off">
+                            <div class="suggestions-dropdown hidden" id="found-suggestions-dropdown">
+                                <!-- Dynamically populated with matching lost items -->
+                            </div>
+                        </div>
+                        <small class="form-hint">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            Type to see reported lost items — select one to auto-fill details
+                        </small>
+                        <span class="form-error" id="error-found-item-name"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="found-category">Category <span class="required">*</span></label>
+                        <select id="found-category" name="category" required>
+                            <option value="">Select category</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Books & Stationery">Books &amp; Stationery</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="ID Cards & Documents">ID Cards &amp; Documents</option>
+                            <option value="Keys">Keys</option>
+                            <option value="Bags & Wallets">Bags &amp; Wallets</option>
+                            <option value="Sports Equipment">Sports Equipment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <span class="form-error" id="error-found-category"></span>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="found-description">Description <span class="required">*</span></label>
+                        <textarea id="found-description" name="description" placeholder="Describe the item — colour, brand, condition..." required maxlength="500" rows="3"></textarea>
+                        <span class="form-error" id="error-found-description"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="found-location">Found Location <span class="required">*</span></label>
+                        <input type="text" id="found-location" name="location" placeholder="e.g. Cafeteria Near Counter" required maxlength="150">
+                        <span class="form-error" id="error-found-location"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="found-date">Date Found <span class="required">*</span></label>
+                        <input type="date" id="found-date" name="reportDate" required>
+                        <span class="form-error" id="error-found-date"></span>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="found-image">Upload Photo (optional)</label>
+                        <div class="file-upload-area" id="found-upload-area">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                            <p>Drag &amp; drop or <span class="upload-link">browse</span></p>
+                            <small>JPG, PNG up to 5 MB</small>
+                            <input type="file" id="found-image" name="image" accept="image/jpeg,image/png,image/webp" class="file-input">
+                        </div>
+                        <div class="image-preview hidden" id="found-image-preview">
+                            <img id="found-preview-img" alt="Preview">
+                            <button type="button" class="btn-remove-image" id="found-remove-image" aria-label="Remove image">&times;</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-success" id="btn-submit-found">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Report Found Item
+                    </button>
+                    <button type="reset" class="btn btn-outline" id="btn-reset-found">Clear Form</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- ===== COLLECTION HISTORY PAGE ===== -->
+        <section class="page" id="page-collection-history">
+            <div class="section-header">
+                <h1>Collection History</h1>
+                <p class="section-subtitle">Audit trail of all verified item handovers</p>
+            </div>
+            <div class="history-table-wrapper" id="history-table-wrapper">
+                <table class="history-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Category</th>
+                            <th>Claimant</th>
+                            <th>Organiser</th>
+                            <th>Organiser ID</th>
+                            <th>Collection Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody">
+                        <!-- Dynamically populated -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty-state hidden" id="history-empty">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <h3>No collection records yet</h3>
+                <p>Verified handovers will appear here once items are collected.</p>
+            </div>
+        </section>
+
+        <!-- ===== ORGANISER LOGIN PAGE ===== -->
+        <section class="page" id="page-organiser-login">
+            <div class="section-header">
+                <h1>Organiser Login</h1>
+                <p class="section-subtitle">Sign in to manage item collections and verify handovers</p>
+            </div>
+            <div class="login-card">
+                <div class="login-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <form id="form-organiser-login" novalidate>
+                    <div class="form-group">
+                        <label for="org-username">Username / Email <span class="required">*</span></label>
+                        <input type="text" id="org-username" name="username" placeholder="organiser@campus.edu" required>
+                        <span class="form-error" id="error-org-username"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="org-password">Password <span class="required">*</span></label>
+                        <input type="password" id="org-password" name="password" placeholder="Enter password" required>
+                        <span class="form-error" id="error-org-password"></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary full-width" id="btn-org-login">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                        Sign In
+                    </button>
+                </form>
+                <div class="demo-credentials">
+                    <p><strong>Demo Credentials:</strong></p>
+                    <p>Username: <code>admin@campus.edu</code></p>
+                    <p>Password: <code>demo123</code></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== ORGANISER DASHBOARD (visible after login) ===== -->
+        <section class="page" id="page-organiser-dashboard">
+            <div class="section-header">
+                <div class="organiser-header">
+                    <div>
+                        <h1>Organiser Panel</h1>
+                        <p class="section-subtitle">Manage collections and verify item handovers</p>
+                    </div>
+                    <div class="organiser-info">
+                        <span class="organiser-badge" id="organiser-badge">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                            <span id="organiser-name-display">Organiser</span>
+                        </span>
+                        <button class="btn btn-outline btn-sm" id="btn-org-logout">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Pending items for collection -->
+            <h2 class="sub-heading">Pending Items</h2>
+            <div class="items-grid" id="organiser-items-grid">
+                <!-- Dynamically populated -->
+            </div>
+            <div class="empty-state hidden" id="organiser-empty">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                <h3>All items collected!</h3>
+                <p>There are no pending items at the moment.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- ========== ITEM DETAIL MODAL ========== -->
+    <div class="modal-overlay hidden" id="modal-overlay">
+        <div class="modal" id="item-modal">
+            <button class="modal-close" id="modal-close" aria-label="Close modal">&times;</button>
+            <div class="modal-body">
+                <div class="modal-image-section">
+                    <img id="modal-item-image" alt="Item photo" src="">
+                    <div class="modal-no-image hidden" id="modal-no-image">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        <p>No photo available</p>
+                    </div>
+                </div>
+                <div class="modal-info-section">
+                    <div class="modal-badges">
+                        <span class="badge" id="modal-report-type"></span>
+                        <span class="badge" id="modal-collection-status"></span>
+                    </div>
+                    <h2 id="modal-item-name"></h2>
+                    <p class="modal-description" id="modal-description"></p>
+                    <div class="modal-details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Category</span>
+                            <span class="detail-value" id="modal-category"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Location</span>
+                            <span class="detail-value" id="modal-location"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Date Reported</span>
+                            <span class="detail-value" id="modal-date"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Item ID</span>
+                            <span class="detail-value" id="modal-item-id"></span>
+                        </div>
+                    </div>
+                    <!-- Collection info (shown when collected) -->
+                    <div class="collection-info hidden" id="modal-collection-info">
+                        <h3>Collection Record</h3>
+                        <div class="modal-details-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Collected By</span>
+                                <span class="detail-value" id="modal-claimant"></span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Verified By</span>
+                                <span class="detail-value" id="modal-organiser"></span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Organiser ID</span>
+                                <span class="detail-value" id="modal-organiser-id"></span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Collection Date</span>
+                                <span class="detail-value" id="modal-collection-date"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Collection form (organiser only, pending items) -->
+                    <div class="collection-form-section hidden" id="modal-collection-form-section">
+                        <h3>Confirm Collection</h3>
+                        <form id="form-collection" novalidate>
+                            <div class="form-group">
+                                <label for="collection-claimant">Owner / Claimant Name <span class="required">*</span></label>
+                                <input type="text" id="collection-claimant" name="claimantName" placeholder="Full name of the person collecting" required maxlength="100">
+                                <span class="form-error" id="error-collection-claimant"></span>
+                            </div>
+                            <p class="organiser-auto-fill">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                Organiser: <strong id="collection-organiser-name"></strong> (ID: <strong id="collection-organiser-id"></strong>)
+                            </p>
+                            <button type="submit" class="btn btn-success full-width" id="btn-confirm-collection">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                Confirm Collection
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== TOAST NOTIFICATIONS ========== -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- ========== SCRIPTS ========== -->
+    <!-- To enable AWS mode, add: <script src="js/env.js"></script> here -->
+    <script src="js/config.js"></script>
+    <script src="js/data-adapter.js"></script>
+    <script src="js/aws-adapter.js"></script>
+    <script src="js/demo-data.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

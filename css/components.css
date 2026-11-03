@@ -1,0 +1,304 @@
+/* ===================================================================
+   Campus Lost & Found — Component-Level Styles
+   Specific overrides and component compositions
+   =================================================================== */
+
+/* ---------- Dashboard Item Cards — category-specific accent ---------- */
+.item-card[data-category="Electronics"] .item-card-body { border-top: 3px solid var(--primary-400); }
+.item-card[data-category="Books & Stationery"] .item-card-body { border-top: 3px solid #a78bfa; }
+.item-card[data-category="Clothing"] .item-card-body { border-top: 3px solid #f472b6; }
+.item-card[data-category="ID Cards & Documents"] .item-card-body { border-top: 3px solid var(--amber-400); }
+.item-card[data-category="Keys"] .item-card-body { border-top: 3px solid #fb923c; }
+.item-card[data-category="Bags & Wallets"] .item-card-body { border-top: 3px solid var(--green-400); }
+.item-card[data-category="Sports Equipment"] .item-card-body { border-top: 3px solid #38bdf8; }
+.item-card[data-category="Other"] .item-card-body { border-top: 3px solid var(--gray-400); }
+
+/* ---------- Collected overlay on card ---------- */
+.item-card.collected {
+    opacity: 0.75;
+}
+
+.item-card.collected::before {
+    content: '✓ Collected';
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(15, 23, 42, 0.8);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    z-index: 5;
+    backdrop-filter: blur(4px);
+}
+
+.item-card.collected:hover { opacity: 0.9; }
+
+/* ---------- Stat card pulse animation ---------- */
+@keyframes pulseStat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.stat-card.animate .stat-number {
+    animation: pulseStat 0.5s ease;
+}
+
+/* ---------- Form submit loading ---------- */
+.btn.loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+/* ---------- Category tag in modal ---------- */
+.badge-category {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+/* ---------- Item ID mono ---------- */
+.mono {
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    color: var(--gray-500);
+}
+
+/* ---------- Organiser panel item cards - show confirm hint ---------- */
+.item-card.organiser-card .item-card-body::after {
+    content: 'Click to verify collection →';
+    display: block;
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--primary-500);
+    font-weight: 600;
+}
+
+/* ---------- History table badges ---------- */
+.history-table .badge {
+    font-size: 0.7rem;
+}
+
+/* ---------- Stagger animation for item cards ---------- */
+.item-card {
+    opacity: 0;
+    animation: cardAppear 0.4s ease forwards;
+}
+
+@keyframes cardAppear {
+    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Apply stagger via inline --delay custom property set by JS */
+.item-card { animation-delay: var(--delay, 0ms); }
+
+/* When card is in collected state, lower the translateY origin */
+.item-card.collected { animation-delay: var(--delay, 0ms); }
+
+/* ---------- Demo data label on cards ---------- */
+.demo-label {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 100px;
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--amber-600);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ---------- Confirmation dialog styles ---------- */
+.confirm-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease;
+}
+
+.confirm-dialog {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    box-shadow: var(--shadow-xl);
+    animation: slideUp 0.2s ease;
+}
+
+.confirm-dialog h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 8px;
+}
+
+.confirm-dialog p {
+    font-size: 0.9rem;
+    color: var(--gray-600);
+    margin-bottom: 24px;
+}
+
+.confirm-dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* ---------- Lost Item Suggestions Dropdown ---------- */
+.suggestions-wrapper {
+    position: relative;
+}
+
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--primary-300);
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 100;
+    animation: dropdownIn 0.2s ease;
+}
+
+@keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.suggestion-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background var(--transition-fast);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.suggestion-item:last-child { border-bottom: none; }
+
+.suggestion-item:hover,
+.suggestion-item.active {
+    background: var(--primary-50);
+}
+
+.suggestion-item-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.suggestion-item-name .badge {
+    font-size: 0.65rem;
+    padding: 1px 7px;
+}
+
+.suggestion-item-meta {
+    font-size: 0.78rem;
+    color: var(--gray-500);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.suggestion-item-meta svg {
+    flex-shrink: 0;
+}
+
+.suggestion-header {
+    padding: 8px 14px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gray-400);
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-100);
+    position: sticky;
+    top: 0;
+}
+
+.suggestion-no-match {
+    padding: 16px 14px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--gray-400);
+}
+
+/* Auto-fill banner shown when a lost item is selected */
+.matched-item-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    background: linear-gradient(135deg, var(--green-50), #ecfdf5);
+    border: 1px solid var(--green-400);
+    border-radius: var(--radius-sm);
+    font-size: 0.84rem;
+    color: var(--green-700);
+    font-weight: 500;
+    animation: fadeSlideIn 0.3s ease;
+}
+
+.matched-item-banner svg { flex-shrink: 0; }
+
+.matched-item-banner .btn-clear-match {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--green-400);
+    color: var(--green-700);
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.matched-item-banner .btn-clear-match:hover {
+    background: var(--green-100);
+}
+
+/* Form hint text */
+.form-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    color: var(--gray-400);
+    margin-top: 4px;
+}
+
+.form-hint svg { flex-shrink: 0; color: var(--primary-400); }

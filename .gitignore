@@ -1,0 +1,29 @@
+# Environment config (contains AWS identifiers — do NOT commit)
+js/env.js
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node (if you ever use npm)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Lambda deployment packages
+lambda/*/*.zip
+
+# Logs
+*.log
+
