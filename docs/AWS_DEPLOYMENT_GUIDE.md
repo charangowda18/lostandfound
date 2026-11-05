@@ -122,7 +122,7 @@ graph TB
 [
     {
         "AllowedHeaders": ["*"],
-        "AllowedMethods": ["PUT", "GET"],
+        "AllowedMethods": ["POST", "GET"],
         "AllowedOrigins": ["*"],
         "ExposeHeaders": ["ETag"],
         "MaxAgeSeconds": 3600

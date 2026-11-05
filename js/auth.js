@@ -20,8 +20,11 @@
 const Auth = {
     _isLoggedIn: false,
     _organiser: null,
-    _token: null,       // JWT token (used in AWS mode)
+    _token: null,          // Primary token for API requests (Cognito Access Token in AWS mode)
+    _accessToken: null,    // Cognito Access Token (for Authorization header)
+    _idToken: null,        // Cognito ID Token (for identity claims)
     _refreshToken: null,
+    _groups: [],
 
     // Demo credentials — ONLY for local testing
     _demoCredentials: {
@@ -32,6 +35,7 @@ const Auth = {
             id: 'ORG-101',
             email: 'admin@campus.edu',
             role: 'organiser',
+            groups: ['Organisers'],
         },
     },
 
@@ -57,7 +61,10 @@ const Auth = {
             // from the demo config) — NOT from user input. This prevents
             // someone from pretending to be a different organiser.
             this._organiser = { ...this._demoCredentials.organiser };
-            this._token = 'demo-token';
+            this._groups = ['Organisers'];
+            this._token = 'demo-access-token';
+            this._accessToken = 'demo-access-token';
+            this._idToken = 'demo-id-token';
             console.log('[Auth] Demo login successful as', this._organiser.name);
             return this._organiser;
         } else {
@@ -67,17 +74,32 @@ const Auth = {
 
     /**
      * AWS Cognito login using InitiateAuth API.
-     * Uses the USER_PASSWORD_AUTH flow (no client secret needed).
+     * Uses the USER_PASSWORD_AUTH flow (no client secret needed for SPA app clients).
      * 
-     * HOW IT WORKS (for beginners):
-     * 1. We send username + password to Cognito's public REST endpoint
-     * 2. Cognito validates them and returns JWT tokens
-     * 3. We decode the ID token to get the organiser's name, email, sub (ID)
-     * 4. We store the access token for API Gateway authorization
+     * HOW IT WORKS:
+     * 1. Validates that Cognito User Pool ID and Client ID are configured in js/env.js.
+     * 2. Sends username + password to Cognito's public REST endpoint.
+     * 3. Cognito validates credentials and returns JWT tokens (AccessToken, IdToken).
+     * 4. Decodes token payloads and checks the 'cognito:groups' claim.
+     * 5. Enforces that only users in the 'Organisers' group can authenticate as organisers.
+     * 6. Stores the Cognito Access Token for API Gateway collection verification.
      */
     async _cognitoLogin(username, password) {
-        const region = AppConfig.aws.region;
+        const region = AppConfig.aws.region || 'ap-southeast-2';
         const clientId = AppConfig.aws.cognitoClientId;
+        const userPoolId = AppConfig.aws.cognitoUserPoolId;
+
+        const missing = [];
+        if (!userPoolId) missing.push('cognitoUserPoolId');
+        if (!clientId) missing.push('cognitoClientId');
+
+        if (missing.length > 0) {
+            throw new Error(
+                `Cognito configuration missing: ${missing.join(', ')} must be provided in js/env.js ` +
+                `to log in as an organiser with AWS Cognito.`
+            );
+        }
+
         const endpoint = `https://cognito-idp.${region}.amazonaws.com/`;
 
         const body = {
@@ -104,39 +126,70 @@ const Auth = {
             // Handle Cognito errors
             if (data.__type || data.message) {
                 const msg = data.message || 'Authentication failed';
-                // Friendly error for new password required
                 if (data.__type && data.__type.includes('NewPasswordRequired')) {
-                    throw new Error('Password change required. Please reset your password in the AWS Cognito Console first.');
+                    throw new Error('Password change required. Please set a new permanent password in AWS Cognito Console first.');
                 }
                 throw new Error(msg);
             }
 
             const tokens = data.AuthenticationResult;
-            if (!tokens || !tokens.IdToken) {
-                throw new Error('Unexpected Cognito response — no tokens received.');
+            if (!tokens || (!tokens.IdToken && !tokens.AccessToken)) {
+                throw new Error('Unexpected Cognito response — no authentication tokens received.');
             }
 
-            // Decode the ID token to get user claims
-            // (JWT has 3 parts separated by '.'; the middle part is the payload)
-            const payload = JSON.parse(atob(tokens.IdToken.split('.')[1]));
-
-            this._token = tokens.IdToken;
-            this._refreshToken = tokens.RefreshToken || null;
-            this._isLoggedIn = true;
-            this._organiser = {
-                name: payload.name || payload.email || 'Organiser',
-                id: payload.sub,        // Cognito unique subject ID
-                email: payload.email,
-                role: 'organiser',
+            // Safe JWT payload decoder (works in browser and Node)
+            const parseJwt = (tokenStr) => {
+                if (!tokenStr || typeof tokenStr !== 'string') return {};
+                try {
+                    const parts = tokenStr.split('.');
+                    if (parts.length < 2) return {};
+                    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                    const jsonStr = typeof atob === 'function'
+                        ? decodeURIComponent(escape(atob(base64)))
+                        : Buffer.from(base64, 'base64').toString('utf8');
+                    return JSON.parse(jsonStr);
+                } catch {
+                    return {};
+                }
             };
 
-            console.log('[Auth] Cognito login successful as', this._organiser.name);
+            const idPayload = parseJwt(tokens.IdToken);
+            const accessPayload = parseJwt(tokens.AccessToken);
+
+            // Extract cognito:groups claim from ID token or Access token
+            const rawGroups = idPayload['cognito:groups'] || accessPayload['cognito:groups'] || [];
+            const groups = Array.isArray(rawGroups)
+                ? rawGroups
+                : (typeof rawGroups === 'string'
+                    ? rawGroups.replace(/^\[|\]$/g, '').split(',').map(s => s.trim())
+                    : []);
+
+            const isOrganiser = groups.some(g => String(g).toLowerCase() === 'organisers');
+            if (!isOrganiser) {
+                throw new Error('Access denied: You must be a member of the "Organisers" Cognito group to sign in as an organiser.');
+            }
+
+            this._accessToken = tokens.AccessToken || null;
+            this._idToken = tokens.IdToken || null;
+            this._token = tokens.AccessToken || tokens.IdToken;
+            this._refreshToken = tokens.RefreshToken || null;
+            this._groups = groups;
+            this._isLoggedIn = true;
+            this._organiser = {
+                name: idPayload.name || idPayload['cognito:username'] || accessPayload.username || idPayload.email || username,
+                id: idPayload.sub || accessPayload.sub || 'ORG-COGNITO',
+                email: idPayload.email || username,
+                role: 'organiser',
+                groups: groups,
+            };
+
+            console.log('[Auth] Cognito organiser login successful as', this._organiser.name);
             return this._organiser;
 
         } catch (err) {
             console.error('[Auth] Cognito login failed:', err);
-            if (err.message.includes('Failed to fetch')) {
-                throw new Error('Cannot reach Cognito. Check your internet connection and AWS region.');
+            if (err.message && err.message.includes('Failed to fetch')) {
+                throw new Error('Cannot reach AWS Cognito. Check your network connection and AWS region.');
             }
             throw err;
         }
@@ -147,7 +200,10 @@ const Auth = {
         this._isLoggedIn = false;
         this._organiser = null;
         this._token = null;
+        this._accessToken = null;
+        this._idToken = null;
         this._refreshToken = null;
+        this._groups = [];
         console.log('[Auth] Logged out');
     },
 
@@ -157,11 +213,31 @@ const Auth = {
     },
 
     /**
+     * Check if the authenticated user is explicitly an Organiser.
+     * Enforces requirement that only Organisers-group users can verify collection.
+     */
+    isOrganiser() {
+        if (!this._isLoggedIn) return false;
+        if (this._groups && this._groups.length > 0) {
+            return this._groups.some(g => String(g).toLowerCase() === 'organisers');
+        }
+        return Boolean(this._organiser && this._organiser.role === 'organiser');
+    },
+
+    /**
+     * Get the Cognito Access Token for API Gateway Authorization.
+     * Used in Authorization header for collection verification.
+     */
+    getAccessToken() {
+        return this._accessToken || this._token;
+    },
+
+    /**
      * Get the JWT token for API Gateway requests.
      * AwsAdapter calls this to set the Authorization header.
      */
     getToken() {
-        return this._token;
+        return this._accessToken || this._token;
     },
 
     /**

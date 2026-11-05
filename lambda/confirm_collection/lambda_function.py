@@ -5,16 +5,21 @@ Marks an item as COLLECTED by an authorised organiser.
 
 API: POST /items/{itemId}/collect
 Body: { claimantName }
-Auth: Cognito JWT required (organiser group)
+Auth: Cognito JWT required (Organisers group)
 
-SECURITY — THIS IS THE MOST IMPORTANT FUNCTION:
-1. Requires valid Cognito JWT token (API Gateway validates it).
-2. The organiser's name and ID come from the JWT claims, NOT the request body.
-   This prevents someone from pretending to be a different organiser.
-3. Uses a DynamoDB ConditionExpression to prevent duplicate collections.
-   If the item is already COLLECTED, the write fails atomically.
-4. Creates an append-only audit record in the CollectionHistory table.
-5. Normal users cannot call this endpoint (Cognito group check).
+SECURITY & TRANSACTION ARCHITECTURE:
+1. Validates Cognito JWT token presence via API Gateway claims.
+2. Derives organiser identity strictly from verified token claims (sub, name, email),
+   never trusting caller-supplied input in the request body.
+3. Explicitly verifies that the caller belongs to the authorised Organisers group
+   via the 'cognito:groups' claim. Ordinary students or users outside this group are
+   rejected with HTTP 403 Forbidden.
+4. Enforces that only FOUND items can be collected (LOST items must first be reported found).
+5. Uses DynamoDB TransactWriteItems to atomically update the item status and write
+   the immutable collection history record in a single transaction. If either write
+   fails, neither is committed, guaranteeing that audit records cannot be silently lost.
+6. Conditional expression (collectionStatus = PENDING) inside the transaction guarantees
+   that duplicate collections are rejected atomically with HTTP 409 Conflict.
 """
 
 import json
@@ -28,10 +33,37 @@ from botocore.exceptions import ClientError
 
 ITEMS_TABLE = os.environ.get('ITEMS_TABLE', 'CampusLostFoundItems')
 HISTORY_TABLE = os.environ.get('HISTORY_TABLE', 'CampusLostFoundHistory')
+ORGANISER_GROUP = os.environ.get('ORGANISER_GROUP', 'Organisers')
 
 dynamodb = boto3.resource('dynamodb')
+dynamodb_client = boto3.client('dynamodb')
 items_table = dynamodb.Table(ITEMS_TABLE)
 history_table = dynamodb.Table(HISTORY_TABLE)
+
+
+def is_in_organiser_group(claims):
+    """
+    Verify if the user belongs to the authorised organisers group.
+    Cognito claims 'cognito:groups' can appear as:
+    - A Python list/set: ['Organisers']
+    - A single string: 'Organisers' or '[Organisers]'
+    - A comma-separated string: 'Organisers,Staff'
+    """
+    raw_groups = claims.get('cognito:groups')
+    if not raw_groups:
+        return False
+
+    target = ORGANISER_GROUP.strip().lower()
+
+    if isinstance(raw_groups, (list, tuple, set)):
+        return any(str(g).strip().lower() == target for g in raw_groups)
+
+    if isinstance(raw_groups, str):
+        cleaned = raw_groups.strip('[]"\' ')
+        groups = [g.strip().strip('"\'').lower() for g in cleaned.split(',') if g.strip()]
+        return target in groups
+
+    return False
 
 
 def lambda_handler(event, context):
@@ -41,75 +73,106 @@ def lambda_handler(event, context):
         if not item_id:
             return response_error(400, 'Missing itemId in path')
 
-        # ---- 2. Get organiser identity from JWT (NOT from request body) ----
-        # API Gateway puts the decoded JWT claims in requestContext.authorizer.claims
+        # ---- 2. Get and verify organiser identity from JWT claims ----
         claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
 
-        # 'sub' is the unique Cognito user ID
-        # 'email' or 'cognito:username' is the username
-        # 'name' is the display name (if set)
-        # 'cognito:groups' contains the user's groups
         organiser_id = claims.get('sub', '')
-        organiser_name = claims.get('name', '') or claims.get('email', '') or claims.get('cognito:username', 'Unknown')
-        organiser_email = claims.get('email', '')
-
         if not organiser_id:
             return response_error(403, 'Unable to identify organiser from token. Authentication required.')
 
-        # ---- 3. Parse and validate request body ----
+        # ---- 3. Explicit Organiser Group Authorization Check ----
+        # Ordinary students or users without the Organisers group are strictly forbidden
+        if not is_in_organiser_group(claims):
+            return response_error(403, f'Forbidden: User does not belong to the authorised {ORGANISER_GROUP} group.')
+
+        # Organiser identity is derived strictly from verified claims, never from request body
+        organiser_name = claims.get('name', '') or claims.get('email', '') or claims.get('cognito:username', 'Unknown')
+        organiser_email = claims.get('email', '')
+
+        # ---- 4. Parse and validate request body ----
         body = json.loads(event.get('body', '{}'))
         claimant_name = sanitise(body.get('claimantName', ''), max_len=100)
 
         if not claimant_name:
             return response_error(400, 'claimantName is required')
 
-        # ---- 4. First, fetch the item to get its name/category for the audit record ----
+        # ---- 5. Fetch the item to check existence, type, and current status ----
         get_response = items_table.get_item(Key={'itemId': item_id})
         item = get_response.get('Item')
 
         if not item:
             return response_error(404, 'Item not found')
 
-        # ---- 5a. Verify this is a FOUND item ----
-        # Only found items can be collected. Lost items haven't been
-        # physically recovered yet, so collection doesn't apply.
-        # This is enforced server-side regardless of frontend checks.
+        # ---- 6. Verify item is a FOUND item ----
+        # Lost items have not been physically recovered and cannot be collected directly
         if item.get('reportType') != 'FOUND':
             return response_error(400, 'Only found items can be collected. Lost items must first be reported as found.')
 
-        # ---- 5b. Conditional update: only if collectionStatus is still PENDING ----
-        # This is the key security measure — DynamoDB guarantees atomicity.
-        # If two organisers click "Confirm" at the same time, only one succeeds.
-        now = datetime.now(timezone.utc).isoformat()
+        # Fast pre-check for already collected item
+        if item.get('collectionStatus') == 'COLLECTED':
+            return response_error(409, 'This item has already been collected. Duplicate collection is not allowed.')
 
+        now = datetime.now(timezone.utc).isoformat()
+        record_id = f"COL-{uuid.uuid4().hex[:8].upper()}"
+
+        # ---- 7. Atomic Transactional Write ----
+        # Atomically updates the item and inserts the audit record in a single transaction.
+        # This guarantees collection history is never silently lost if history write fails.
+        # ConditionExpression ensures atomic duplicate prevention against race conditions.
         try:
-            items_table.update_item(
-                Key={'itemId': item_id},
-                UpdateExpression=(
-                    'SET collectionStatus = :collected, '
-                    'claimantName = :claimant, '
-                    'organiserName = :orgName, '
-                    'organiserId = :orgId, '
-                    'collectionTimestamp = :ts, '
-                    'updatedAt = :ts'
-                ),
-                ExpressionAttributeValues={
-                    ':collected': 'COLLECTED',
-                    ':claimant': claimant_name,
-                    ':orgName': organiser_name,
-                    ':orgId': organiser_id,
-                    ':ts': now,
-                    ':pending': 'PENDING',
-                },
-                ConditionExpression='collectionStatus = :pending',
+            dynamodb_client.transact_write_items(
+                TransactItems=[
+                    {
+                        'Update': {
+                            'TableName': ITEMS_TABLE,
+                            'Key': {'itemId': {'S': item_id}},
+                            'UpdateExpression': (
+                                'SET collectionStatus = :collected, '
+                                'claimantName = :claimant, '
+                                'organiserName = :orgName, '
+                                'organiserId = :orgId, '
+                                'collectionTimestamp = :ts, '
+                                'updatedAt = :ts'
+                            ),
+                            'ExpressionAttributeValues': {
+                                ':collected': {'S': 'COLLECTED'},
+                                ':claimant': {'S': claimant_name},
+                                ':orgName': {'S': organiser_name},
+                                ':orgId': {'S': organiser_id},
+                                ':ts': {'S': now},
+                                ':pending': {'S': 'PENDING'},
+                            },
+                            'ConditionExpression': 'collectionStatus = :pending',
+                        }
+                    },
+                    {
+                        'Put': {
+                            'TableName': HISTORY_TABLE,
+                            'Item': {
+                                'recordId': {'S': record_id},
+                                'itemId': {'S': item_id},
+                                'itemName': {'S': item.get('itemName', '')},
+                                'category': {'S': item.get('category', '')},
+                                'claimantName': {'S': claimant_name},
+                                'organiserName': {'S': organiser_name},
+                                'organiserId': {'S': organiser_id},
+                                'organiserEmail': {'S': organiser_email or ''},
+                                'collectionTimestamp': {'S': now},
+                                'status': {'S': 'COLLECTED'},
+                                'isDemo': {'BOOL': False},
+                            }
+                        }
+                    }
+                ]
             )
         except ClientError as e:
-            if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            code = e.response.get('Error', {}).get('Code', '')
+            if code in ('TransactionCanceledException', 'ConditionalCheckFailedException'):
                 return response_error(409, 'This item has already been collected. Duplicate collection is not allowed.')
             raise
 
-        # ---- 6. Create append-only audit record ----
-        record_id = f"COL-{uuid.uuid4().hex[:8].upper()}"
+        print(f"[INFO] Collection confirmed atomically: item={item_id}, claimant={claimant_name}, organiser={organiser_name}")
+
         history_record = {
             'recordId': record_id,
             'itemId': item_id,
@@ -123,12 +186,9 @@ def lambda_handler(event, context):
             'status': 'COLLECTED',
             'isDemo': False,
         }
-        history_table.put_item(Item=history_record)
 
-        print(f"[INFO] Collection confirmed: item={item_id}, claimant={claimant_name}, organiser={organiser_name}")
-
-        # Return updated item + history record
-        updated_item = {**item, 
+        updated_item = {
+            **item,
             'collectionStatus': 'COLLECTED',
             'claimantName': claimant_name,
             'organiserName': organiser_name,

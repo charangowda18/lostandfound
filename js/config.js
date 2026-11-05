@@ -45,21 +45,28 @@ const AppConfig = {
 
 /*
  * Try to load AWS config from env.js (loaded separately).
- * If window.__AWS_CONFIG__ is defined, switch to AWS mode.
+ * If window.__AWS_CONFIG__ is defined with an apiBaseUrl, switch to AWS mode.
  *
  * IMPORTANT: env.js should NEVER be committed to Git.
  * It contains only public-facing identifiers (pool IDs, API URLs),
  * NOT secret keys. Secret keys must never appear in browser code.
  */
 (function detectMode() {
-    if (typeof window.__AWS_CONFIG__ === 'object') {
+    if (typeof window.__AWS_CONFIG__ === 'object' && window.__AWS_CONFIG__ !== null) {
         const cfg = window.__AWS_CONFIG__;
-        if (cfg.apiBaseUrl && cfg.cognitoUserPoolId && cfg.cognitoClientId && cfg.region) {
+        if (cfg.apiBaseUrl) {
             AppConfig.mode = 'AWS';
             AppConfig.aws = { ...AppConfig.aws, ...cfg };
-            console.log('[Config] AWS mode activated');
+            console.log(`[Config] AWS mode activated (API: ${cfg.apiBaseUrl}, Region: ${cfg.region || 'ap-southeast-2'})`);
+
+            const missing = [];
+            if (!cfg.cognitoUserPoolId) missing.push('cognitoUserPoolId');
+            if (!cfg.cognitoClientId) missing.push('cognitoClientId');
+            if (missing.length > 0) {
+                console.warn(`[Config] Note: Missing Cognito values: ${missing.join(', ')}. Organiser login requires these values.`);
+            }
         } else {
-            console.warn('[Config] Partial AWS config found — staying in LOCAL demo mode.');
+            console.warn('[Config] __AWS_CONFIG__ present but apiBaseUrl is empty — staying in LOCAL demo mode.');
         }
     } else {
         console.log('[Config] No AWS config found — running in LOCAL DEMO mode.');

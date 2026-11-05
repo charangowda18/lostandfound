@@ -43,10 +43,46 @@ const App = {
         document.getElementById('lost-date').max = today;
         document.getElementById('found-date').max = today;
 
-        // 4. Load dashboard
+        // 4. Update banner for AWS connection status
+        this.updateModeBanner();
+
+        // 5. Load dashboard
         await this.loadDashboard();
 
         console.log('[App] Ready!');
+    },
+
+    /** Update banner and credentials notice when connected to AWS */
+    updateModeBanner() {
+        const banner = document.getElementById('demo-banner');
+        if (banner && AppConfig.mode === 'AWS') {
+            banner.style.background = 'linear-gradient(90deg, #ecfdf5, #d1fae5)';
+            banner.style.borderBottomColor = '#6ee7b7';
+            banner.style.color = '#065f46';
+            const region = AppConfig.aws.region || 'ap-southeast-2';
+            banner.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                <span><strong>AWS CONNECTED (${escapeHtml(region)})</strong> — Live API Gateway: <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">${escapeHtml(AppConfig.aws.apiBaseUrl)}</code></span>
+            `;
+
+            // If Cognito is not fully configured, update the login notice
+            const demoCreds = document.querySelector('.demo-credentials');
+            if (demoCreds) {
+                if (!AppConfig.aws.cognitoClientId) {
+                    demoCreds.innerHTML = `
+                        <p><strong>AWS Cognito Status:</strong></p>
+                        <p>User Pool ID: <code style="font-size:0.75rem">${escapeHtml(AppConfig.aws.cognitoUserPoolId || 'Not set')}</code></p>
+                        <p style="color:var(--amber-700)">App Client ID pending: Set <code>cognitoClientId</code> in <code>js/env.js</code> to enable organiser sign-in.</p>
+                        <p><small>Public browsing &amp; reporting remain active without login.</small></p>
+                    `;
+                } else {
+                    demoCreds.innerHTML = `
+                        <p><strong>AWS Cognito Authentication:</strong></p>
+                        <p>Sign in with your Cognito User Pool account (must belong to the <code>Organisers</code> group).</p>
+                    `;
+                }
+            }
+        }
     },
 
     /* ================================================================
@@ -175,7 +211,7 @@ const App = {
             }
 
             const imageHtml = item.imageUrl
-                ? `<div class="item-card-image"><img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.itemName)}"></div>`
+                ? `<div class="item-card-image"><img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.itemName)}" onerror="this.onerror=null; this.parentElement.className='item-card-no-image'; this.parentElement.innerHTML='<svg width=\\'32\\' height=\\'32\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\' ry=\\'2\\'></rect><circle cx=\\'8.5\\' cy=\\'8.5\\' r=\\'1.5\\'></circle><polyline points=\\'21 15 16 10 5 21\\'></polyline></svg><p>No photo</p>';"></div>`
                 : `<div class="item-card-no-image">
                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                        <p>No photo</p>
@@ -637,6 +673,21 @@ const App = {
             // Set image
             const imgEl = document.getElementById('modal-item-image');
             const noImgEl = document.getElementById('modal-no-image');
+
+            // If item has imageKey but imageUrl is not yet populated, resolve it
+            if (!item.imageUrl && item.imageKey) {
+                try {
+                    item.imageUrl = await DataAdapter.getImageUrl(item.imageKey);
+                } catch {
+                    item.imageUrl = null;
+                }
+            }
+
+            imgEl.onerror = () => {
+                imgEl.classList.add('hidden');
+                noImgEl.classList.remove('hidden');
+            };
+
             if (item.imageUrl) {
                 imgEl.src = item.imageUrl;
                 imgEl.classList.remove('hidden');
@@ -677,9 +728,9 @@ const App = {
 
             // Collection form (organiser only, FOUND items that are still PENDING)
             // SECURITY NOTE: This is a UI convenience only. The backend Lambda
-            // independently verifies reportType === 'FOUND' before allowing collection.
+            // independently verifies reportType === 'FOUND' and cognito:groups === 'Organisers'.
             const collectionFormSection = document.getElementById('modal-collection-form-section');
-            if (Auth.isLoggedIn() && item.collectionStatus === 'PENDING' && item.reportType === 'FOUND') {
+            if (Auth.isLoggedIn() && Auth.isOrganiser() && item.collectionStatus === 'PENDING' && item.reportType === 'FOUND') {
                 collectionFormSection.classList.remove('hidden');
                 const org = Auth.getOrganiser();
                 document.getElementById('collection-organiser-name').textContent = org.name;
@@ -710,8 +761,8 @@ const App = {
        ================================================================ */
 
     async handleCollectionConfirm() {
-        if (!Auth.isLoggedIn()) {
-            showToast('You must be logged in as an organiser.', 'error');
+        if (!Auth.isLoggedIn() || !Auth.isOrganiser()) {
+            showToast('Access denied: You must be logged in as an authorised organiser.', 'error');
             return;
         }
 
@@ -863,7 +914,8 @@ const App = {
     },
 
     async loadOrganiserDashboard() {
-        if (!Auth.isLoggedIn()) {
+        if (!Auth.isLoggedIn() || !Auth.isOrganiser()) {
+            showToast('Access restricted: Organiser sign-in required.', 'warning');
             this.navigateTo('organiser-login');
             return;
         }

@@ -83,30 +83,37 @@ class TestConfirmCollection:
 
     @pytest.fixture(autouse=True)
     def setup(self):
-        self.mod, self.mock_resource, _, self.ClientError = load_lambda('confirm_collection')
+        self.mod, self.mock_resource, self.mock_client, self.ClientError = load_lambda('confirm_collection')
         self.items_table = MagicMock()
         self.history_table = MagicMock()
+        self.dynamodb_client = MagicMock()
         self.mod.items_table = self.items_table
         self.mod.history_table = self.history_table
+        self.mod.dynamodb_client = self.dynamodb_client
 
     def _make_event(self, item_id='ITEM-001', claimant='John Doe',
-                    sub='org-sub-123', name='Dr. Admin', email='admin@campus.edu'):
+                    sub='org-sub-123', name='Dr. Admin', email='admin@campus.edu',
+                    groups=['Organisers']):
+        claims = {
+            'sub': sub,
+            'name': name,
+            'email': email,
+        }
+        if groups is not None:
+            claims['cognito:groups'] = groups
+
         return {
             'pathParameters': {'itemId': item_id},
             'body': json.dumps({'claimantName': claimant}),
             'requestContext': {
                 'authorizer': {
-                    'claims': {
-                        'sub': sub,
-                        'name': name,
-                        'email': email,
-                    }
+                    'claims': claims
                 }
             }
         }
 
     def test_collect_found_item_succeeds(self):
-        """FOUND + PENDING item should be collectable."""
+        """Authorised organiser confirming FOUND + PENDING item succeeds atomically."""
         self.items_table.get_item.return_value = {
             'Item': {
                 'itemId': 'ITEM-001',
@@ -116,7 +123,7 @@ class TestConfirmCollection:
                 'collectionStatus': 'PENDING',
             }
         }
-        self.items_table.update_item.return_value = {}
+        self.dynamodb_client.transact_write_items.return_value = {}
 
         result = self.mod.lambda_handler(self._make_event(), None)
         body = json.loads(result['body'])
@@ -128,6 +135,43 @@ class TestConfirmCollection:
         assert body['item']['organiserId'] == 'org-sub-123'
         assert body['historyRecord']['status'] == 'COLLECTED'
         assert body['historyRecord']['isDemo'] is False
+        self.dynamodb_client.transact_write_items.assert_called_once()
+
+    def test_ordinary_student_rejected_403(self):
+        """Ordinary student with valid token but not in Organisers group is rejected with 403."""
+        event = self._make_event(groups=['Students'])
+        result = self.mod.lambda_handler(event, None)
+        body = json.loads(result['body'])
+
+        assert result['statusCode'] == 403
+        assert 'Forbidden' in body['error']
+        assert 'Organisers' in body['error']
+        self.dynamodb_client.transact_write_items.assert_not_called()
+
+    def test_user_without_groups_rejected_403(self):
+        """Authenticated user without cognito:groups claim is rejected with 403."""
+        event = self._make_event(groups=None)
+        result = self.mod.lambda_handler(event, None)
+        body = json.loads(result['body'])
+
+        assert result['statusCode'] == 403
+        assert 'Forbidden' in body['error']
+        self.dynamodb_client.transact_write_items.assert_not_called()
+
+    def test_reject_no_auth_token_403(self):
+        """Request without Cognito claims / missing token must be rejected with 403."""
+        event = {
+            'pathParameters': {'itemId': 'ITEM-001'},
+            'body': json.dumps({'claimantName': 'John'}),
+            'requestContext': {'authorizer': {'claims': {}}},
+        }
+
+        result = self.mod.lambda_handler(event, None)
+        body = json.loads(result['body'])
+
+        assert result['statusCode'] == 403
+        assert 'Authentication required' in body['error']
+        self.dynamodb_client.transact_write_items.assert_not_called()
 
     def test_reject_lost_item_collection(self):
         """LOST items must NOT be collectable — server-side enforcement."""
@@ -145,11 +189,29 @@ class TestConfirmCollection:
 
         assert result['statusCode'] == 400
         assert 'Only found items' in body['error']
-        # update_item must NOT have been called
-        self.items_table.update_item.assert_not_called()
+        self.dynamodb_client.transact_write_items.assert_not_called()
 
-    def test_reject_duplicate_collection(self):
-        """Already-collected items must be rejected via ConditionalCheckFailedException."""
+    def test_reject_already_collected_item_early_409(self):
+        """Item already marked COLLECTED in DB returns 409 immediately."""
+        self.items_table.get_item.return_value = {
+            'Item': {
+                'itemId': 'ITEM-003',
+                'reportType': 'FOUND',
+                'collectionStatus': 'COLLECTED',
+                'itemName': 'Keys',
+                'category': 'Keys',
+            }
+        }
+
+        result = self.mod.lambda_handler(self._make_event(item_id='ITEM-003'), None)
+        body = json.loads(result['body'])
+
+        assert result['statusCode'] == 409
+        assert 'already been collected' in body['error']
+        self.dynamodb_client.transact_write_items.assert_not_called()
+
+    def test_reject_duplicate_collection_transaction_canceled(self):
+        """Race condition / concurrent write rejected by DynamoDB transaction condition."""
         self.items_table.get_item.return_value = {
             'Item': {
                 'itemId': 'ITEM-003',
@@ -159,9 +221,9 @@ class TestConfirmCollection:
                 'category': 'Keys',
             }
         }
-        self.items_table.update_item.side_effect = self.ClientError(
-            {'Error': {'Code': 'ConditionalCheckFailedException', 'Message': 'condition'}},
-            'UpdateItem'
+        self.dynamodb_client.transact_write_items.side_effect = self.ClientError(
+            {'Error': {'Code': 'TransactionCanceledException', 'Message': 'Transaction cancelled'}},
+            'TransactWriteItems'
         )
 
         result = self.mod.lambda_handler(self._make_event(item_id='ITEM-003'), None)
@@ -169,20 +231,6 @@ class TestConfirmCollection:
 
         assert result['statusCode'] == 409
         assert 'already been collected' in body['error']
-
-    def test_reject_no_auth(self):
-        """Request without Cognito claims must be rejected."""
-        event = {
-            'pathParameters': {'itemId': 'ITEM-001'},
-            'body': json.dumps({'claimantName': 'John'}),
-            'requestContext': {'authorizer': {'claims': {}}},
-        }
-
-        result = self.mod.lambda_handler(event, None)
-        body = json.loads(result['body'])
-
-        assert result['statusCode'] == 403
-        assert 'Authentication required' in body['error']
 
     def test_reject_missing_claimant(self):
         """Empty claimant name must be rejected."""
@@ -201,7 +249,7 @@ class TestConfirmCollection:
         assert result['statusCode'] == 404
 
     def test_organiser_identity_from_jwt_not_body(self):
-        """Organiser name/id must come from JWT claims, not the request body."""
+        """Organiser name/id must come from JWT claims, never from the request body."""
         self.items_table.get_item.return_value = {
             'Item': {
                 'itemId': 'ITEM-004',
@@ -211,18 +259,18 @@ class TestConfirmCollection:
                 'collectionStatus': 'PENDING',
             }
         }
-        self.items_table.update_item.return_value = {}
+        self.dynamodb_client.transact_write_items.return_value = {}
 
-        # Even if the body contained organiserName, the Lambda ignores it
+        # Body attempts to spoof a different organiser identity
         event = self._make_event(
             item_id='ITEM-004',
             sub='real-sub-from-jwt',
             name='Real Organiser',
+            groups=['Organisers']
         )
-        # Inject a fake organiser in the body (should be ignored)
         body_data = json.loads(event['body'])
-        body_data['organiserName'] = 'FAKE ORGANISER'
-        body_data['organiserId'] = 'FAKE-ID'
+        body_data['organiserName'] = 'FAKE ATTACKER'
+        body_data['organiserId'] = 'FAKE-ATTACKER-ID'
         event['body'] = json.dumps(body_data)
 
         result = self.mod.lambda_handler(event, None)
@@ -238,6 +286,11 @@ class TestConfirmCollection:
 
         result = self.mod.lambda_handler(self._make_event(), None)
         body = json.loads(result['body'])
+
+        assert result['statusCode'] == 500
+        assert 'boto3' not in body['error']
+        assert 'stack trace' not in body['error']
+        assert body['error'] == 'Failed to confirm collection'
 
         assert result['statusCode'] == 500
         assert 'boto3' not in body['error']
