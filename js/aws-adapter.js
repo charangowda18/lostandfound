@@ -60,10 +60,12 @@ const AwsAdapter = {
 
         // Add auth token if available (for organiser-protected endpoints)
         if (Auth.isLoggedIn()) {
-            const token = typeof Auth.getAccessToken === 'function' ? Auth.getAccessToken() : Auth.getToken();
-            if (token) {
-                headers['Authorization'] = token;
+            const idToken = typeof Auth.getIdToken === 'function' ? Auth.getIdToken() : null;
+            if (!idToken) {
+                throw new Error('Authentication error: Cognito ID token is unavailable. Please sign in again.');
             }
+            // Send the raw ID token in the Authorization header, without Bearer prefix
+            headers['Authorization'] = idToken;
         }
 
         const response = await fetch(url, { ...options, headers });

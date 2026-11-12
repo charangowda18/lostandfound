@@ -159,7 +159,28 @@ const App = {
 
             // Load items with current filters
             const filters = this.getFilters();
-            const items = await DataAdapter.getItems(filters);
+            let items = await DataAdapter.getItems(filters);
+
+            // ── Auto-hide LOST items whose matching FOUND item is COLLECTED ──
+            // Build a set of (itemName|category) keys for all FOUND+COLLECTED items.
+            const collectedFoundKeys = new Set();
+            items.forEach(item => {
+                if (item.reportType === 'FOUND' && item.collectionStatus === 'COLLECTED') {
+                    collectedFoundKeys.add(
+                        item.itemName.trim().toLowerCase() + '|' + item.category.trim().toLowerCase()
+                    );
+                }
+            });
+            // Remove LOST items that match a collected FOUND item
+            if (collectedFoundKeys.size > 0) {
+                items = items.filter(item => {
+                    if (item.reportType === 'LOST') {
+                        const key = item.itemName.trim().toLowerCase() + '|' + item.category.trim().toLowerCase();
+                        return !collectedFoundKeys.has(key);
+                    }
+                    return true;
+                });
+            }
 
             // Hide loading
             document.getElementById('loading-state').classList.add('hidden');
@@ -206,8 +227,13 @@ const App = {
             card.style.setProperty('--delay', `${index * 60}ms`);
 
             // Add organiser-card class if in organiser view
-            if (containerId === 'organiser-items-grid') {
+            if (containerId.startsWith('organiser-')) {
                 card.classList.add('organiser-card');
+                if (item.reportType === 'FOUND') {
+                    card.classList.add('organiser-found');
+                } else {
+                    card.classList.add('organiser-lost');
+                }
             }
 
             const imageHtml = item.imageUrl
@@ -921,17 +947,57 @@ const App = {
         }
 
         try {
-            // Show only PENDING items for organiser workflow
+            // Fetch all PENDING items
             const items = await DataAdapter.getItems({ collectionStatus: 'PENDING' });
-            const grid = document.getElementById('organiser-items-grid');
-            const emptyState = document.getElementById('organiser-empty');
+            const foundItems = items.filter(i => i.reportType === 'FOUND');
 
-            if (items.length === 0) {
-                grid.innerHTML = '';
-                emptyState.classList.remove('hidden');
-            } else {
-                emptyState.classList.add('hidden');
-                this.renderItemCards(items, 'organiser-items-grid');
+            // ── Also fetch COLLECTED found items to auto-hide resolved lost items ──
+            const allItems = await DataAdapter.getItems({});
+            const collectedFoundKeys = new Set();
+            allItems.forEach(item => {
+                if (item.reportType === 'FOUND' && item.collectionStatus === 'COLLECTED') {
+                    collectedFoundKeys.add(
+                        item.itemName.trim().toLowerCase() + '|' + item.category.trim().toLowerCase()
+                    );
+                }
+            });
+            const lostItems = items
+                .filter(i => i.reportType === 'LOST')
+                .filter(i => {
+                    const key = i.itemName.trim().toLowerCase() + '|' + i.category.trim().toLowerCase();
+                    return !collectedFoundKeys.has(key);
+                });
+
+            // Update section count badges
+            const foundCountEl = document.getElementById('count-organiser-found');
+            if (foundCountEl) foundCountEl.textContent = `${foundItems.length} item${foundItems.length !== 1 ? 's' : ''}`;
+            const lostCountEl = document.getElementById('count-organiser-lost');
+            if (lostCountEl) lostCountEl.textContent = `${lostItems.length} item${lostItems.length !== 1 ? 's' : ''}`;
+
+            // 1. Found Items (Collection Verification Section)
+            const foundGrid = document.getElementById('organiser-found-grid');
+            const foundEmpty = document.getElementById('organiser-found-empty');
+            if (foundGrid && foundEmpty) {
+                if (foundItems.length === 0) {
+                    foundGrid.innerHTML = '';
+                    foundEmpty.classList.remove('hidden');
+                } else {
+                    foundEmpty.classList.add('hidden');
+                    this.renderItemCards(foundItems, 'organiser-found-grid');
+                }
+            }
+
+            // 2. Lost Items (Reference & Matching Section)
+            const lostGrid = document.getElementById('organiser-lost-grid');
+            const lostEmpty = document.getElementById('organiser-lost-empty');
+            if (lostGrid && lostEmpty) {
+                if (lostItems.length === 0) {
+                    lostGrid.innerHTML = '';
+                    lostEmpty.classList.remove('hidden');
+                } else {
+                    lostEmpty.classList.add('hidden');
+                    this.renderItemCards(lostItems, 'organiser-lost-grid');
+                }
             }
         } catch (err) {
             showToast('Failed to load pending items.', 'error');

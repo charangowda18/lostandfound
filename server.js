@@ -41,6 +41,17 @@ const server = http.createServer((req, res) => {
     });
 });
 
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`\n[Error] Port ${PORT} is already in use by another process.`);
+        console.error(`The server is already running, or another app is using port ${PORT}.`);
+        console.error(`To free port ${PORT} in PowerShell, run:`);
+        console.error(`  Stop-Process -Id (Get-NetTCPConnection -LocalPort ${PORT}).OwningProcess -Force\n`);
+    } else {
+        console.error('[Server Error]', err);
+    }
+});
+
 server.listen(PORT, '127.0.0.1', () => {
     console.log(`Campus Lost & Found is running at http://localhost:${PORT}/`);
 });

@@ -78,13 +78,22 @@
     color: var(--gray-500);
 }
 
-/* ---------- Organiser panel item cards - show confirm hint ---------- */
-.item-card.organiser-card .item-card-body::after {
+/* ---------- Organiser panel item cards - show contextual hint ---------- */
+.item-card.organiser-card.organiser-found .item-card-body::after {
     content: 'Click to verify collection →';
     display: block;
     margin-top: 10px;
     font-size: 0.78rem;
     color: var(--primary-500);
+    font-weight: 600;
+}
+
+.item-card.organiser-card.organiser-lost .item-card-body::after {
+    content: 'Click to view details →';
+    display: block;
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--gray-500);
     font-weight: 600;
 }
 

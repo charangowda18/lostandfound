@@ -12,12 +12,14 @@ global.AppConfig = {
 };
 
 let mockLoggedIn = false;
+let mockIdToken = null;
 let mockAccessToken = null;
 
 global.Auth = {
     isLoggedIn: () => mockLoggedIn,
+    getIdToken: () => mockIdToken,
     getAccessToken: () => mockAccessToken,
-    getToken: () => mockAccessToken,
+    getToken: () => mockIdToken,
 };
 
 // Track API calls
@@ -166,31 +168,49 @@ async function runTests() {
     assert.strictEqual(items[2].imageUrl, null, 'Failed imageKey lookup should gracefully fall back to null');
     console.log('✓ getItems resolves images and handles missing/null keys gracefully');
 
-    // Test 4: Confirm collection sends Authorization header with Cognito Access Token to POST /items/{itemId}
+    // Test 4: Confirm collection sends Authorization header with raw Cognito ID Token (no Bearer prefix)
     fetchCalls = [];
     mockLoggedIn = true;
-    mockAccessToken = 'cognito-access-token-xyz-123';
+    mockIdToken = 'mock-id-token-header.payload.sig';
+    mockAccessToken = 'mock-access-token-header.payload.sig';
     const confirmRes = await AwsAdapter.confirmCollection('ITEM-101', 'Jane Doe');
     assert.strictEqual(confirmRes.status, 'COLLECTED');
     assert.strictEqual(fetchCalls.length, 1);
     assert.strictEqual(fetchCalls[0].url, 'https://test.execute-api.ap-southeast-2.amazonaws.com/prod/items/ITEM-101');
     assert.strictEqual(fetchCalls[0].options.method, 'POST');
-    assert.strictEqual(fetchCalls[0].options.headers['Authorization'], 'cognito-access-token-xyz-123');
+    assert.strictEqual(fetchCalls[0].options.headers['Authorization'], 'mock-id-token-header.payload.sig');
+    assert(!fetchCalls[0].options.headers['Authorization'].startsWith('Bearer '), 'Must NOT contain Bearer prefix');
     assert.deepStrictEqual(JSON.parse(fetchCalls[0].options.body), { claimantName: 'Jane Doe' });
-    console.log('✓ confirmCollection calls POST /items/{itemId} with Authorization header containing Cognito Access Token');
+    console.log('✓ confirmCollection calls POST /items/{itemId} with raw Cognito ID token (no Bearer prefix)');
 
-    // Test 5: Create item sends POST /items
+    // Test 5: Rejects with error if ID token is missing/unavailable, and does NOT fallback to Access Token
+    mockLoggedIn = true;
+    mockIdToken = null;
+    mockAccessToken = 'mock-access-token-should-not-be-sent';
+    let caughtError = null;
+    try {
+        await AwsAdapter.confirmCollection('ITEM-101', 'Jane Doe');
+    } catch (err) {
+        caughtError = err;
+    }
+    assert(caughtError !== null, 'Must throw error when ID token is unavailable');
+    assert(caughtError.message.includes('Cognito ID token is unavailable'), 'Error message should clearly cite unavailable ID token');
+    console.log('✓ Rejects with error when ID token is unavailable without falling back to Access Token');
+
+    // Test 6: Create item sends POST /items without auth
     fetchCalls = [];
     mockLoggedIn = false;
+    mockIdToken = null;
     mockAccessToken = null;
     const created = await AwsAdapter.createItem({ itemName: 'Calculator', reportType: 'LOST' });
     assert.strictEqual(created.itemId, 'ITEM-999');
     assert.strictEqual(created.itemName, 'Calculator');
     assert.strictEqual(fetchCalls[0].url, 'https://test.execute-api.ap-southeast-2.amazonaws.com/prod/items');
     assert.strictEqual(fetchCalls[0].options.method, 'POST');
+    assert.strictEqual(fetchCalls[0].options.headers['Authorization'], undefined);
     console.log('✓ createItem calls POST /items with item payload');
 
-    // Test 6: Image upload via pre-signed POST flow
+    // Test 7: Image upload via pre-signed POST flow
     fetchCalls = [];
     const fakeFile = { name: 'photo.jpg', type: 'image/jpeg' };
     const uploadRes = await AwsAdapter.uploadImage(fakeFile);
@@ -200,14 +220,14 @@ async function runTests() {
     assert.strictEqual(fetchCalls[1].url, 'https://campus-lost-found-photos-2026.s3.ap-southeast-2.amazonaws.com/');
     console.log('✓ uploadImage requests presigned POST and uploads to S3');
 
-    // Test 7: Get collection history
+    // Test 8: Get collection history
     fetchCalls = [];
     const history = await AwsAdapter.getCollectionHistory();
     assert.strictEqual(history.length, 1);
     assert.strictEqual(history[0].claimantName, 'Jane Doe');
     console.log('✓ getCollectionHistory calls GET /collection-history');
 
-    // Test 8: Get stats
+    // Test 9: Get stats
     fetchCalls = [];
     const stats = await AwsAdapter.getStats();
     assert.strictEqual(stats.total, 3);
@@ -216,7 +236,24 @@ async function runTests() {
     assert.strictEqual(stats.collected, 1);
     console.log('✓ getStats aggregates item statistics');
 
-    console.log('\nAll AwsAdapter tests passed successfully!');
+    // Test 10: Auth module getIdToken verification
+    const authCode = fs.readFileSync('js/auth.js', 'utf8');
+    const authSandbox = {
+        AppConfig: { mode: 'LOCAL' },
+        console: console,
+        setTimeout: setTimeout,
+    };
+    vm.createContext(authSandbox);
+    const authInstance = vm.runInContext(authCode + '; Auth;', authSandbox);
+    assert.strictEqual(authInstance.getIdToken(), null);
+    await authInstance.login('admin@campus.edu', 'demo123');
+    assert.strictEqual(authInstance.getIdToken(), 'demo-id-token');
+    assert.strictEqual(authInstance.getToken(), 'demo-id-token');
+    authInstance.logout();
+    assert.strictEqual(authInstance.getIdToken(), null);
+    console.log('✓ Auth.getIdToken() stores and returns ID token properly across login/logout');
+
+    console.log('\nAll AwsAdapter and Auth tests passed successfully!');
 }
 
 runTests().catch(err => {

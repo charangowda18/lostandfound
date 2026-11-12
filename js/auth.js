@@ -20,9 +20,9 @@
 const Auth = {
     _isLoggedIn: false,
     _organiser: null,
-    _token: null,          // Primary token for API requests (Cognito Access Token in AWS mode)
-    _accessToken: null,    // Cognito Access Token (for Authorization header)
-    _idToken: null,        // Cognito ID Token (for identity claims)
+    _token: null,          // Primary token for API requests (Cognito ID Token in AWS mode)
+    _accessToken: null,    // Cognito Access Token
+    _idToken: null,        // Cognito ID Token (for API Gateway Cognito authorizer)
     _refreshToken: null,
     _groups: [],
 
@@ -62,9 +62,9 @@ const Auth = {
             // someone from pretending to be a different organiser.
             this._organiser = { ...this._demoCredentials.organiser };
             this._groups = ['Organisers'];
-            this._token = 'demo-access-token';
-            this._accessToken = 'demo-access-token';
             this._idToken = 'demo-id-token';
+            this._accessToken = 'demo-access-token';
+            this._token = 'demo-id-token';
             console.log('[Auth] Demo login successful as', this._organiser.name);
             return this._organiser;
         } else {
@@ -133,8 +133,8 @@ const Auth = {
             }
 
             const tokens = data.AuthenticationResult;
-            if (!tokens || (!tokens.IdToken && !tokens.AccessToken)) {
-                throw new Error('Unexpected Cognito response — no authentication tokens received.');
+            if (!tokens || !tokens.IdToken) {
+                throw new Error('Unexpected Cognito response — no ID token received.');
             }
 
             // Safe JWT payload decoder (works in browser and Node)
@@ -170,8 +170,8 @@ const Auth = {
             }
 
             this._accessToken = tokens.AccessToken || null;
-            this._idToken = tokens.IdToken || null;
-            this._token = tokens.AccessToken || tokens.IdToken;
+            this._idToken = tokens.IdToken;
+            this._token = tokens.IdToken;
             this._refreshToken = tokens.RefreshToken || null;
             this._groups = groups;
             this._isLoggedIn = true;
@@ -225,19 +225,25 @@ const Auth = {
     },
 
     /**
-     * Get the Cognito Access Token for API Gateway Authorization.
-     * Used in Authorization header for collection verification.
+     * Get the Cognito ID Token for API Gateway Cognito Authorizer.
+     * API Gateway Cognito User Pool authorizers require the ID token.
      */
-    getAccessToken() {
-        return this._accessToken || this._token;
+    getIdToken() {
+        return this._idToken || null;
     },
 
     /**
-     * Get the JWT token for API Gateway requests.
-     * AwsAdapter calls this to set the Authorization header.
+     * Get the Cognito Access Token if needed for user-level OAuth scopes.
+     */
+    getAccessToken() {
+        return this._accessToken || null;
+    },
+
+    /**
+     * Get the primary JWT token for API Gateway requests (returns ID token).
      */
     getToken() {
-        return this._accessToken || this._token;
+        return this.getIdToken();
     },
 
     /**

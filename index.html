@@ -382,15 +382,42 @@
                     </div>
                 </div>
             </div>
-            <!-- Pending items for collection -->
-            <h2 class="sub-heading">Pending Items</h2>
-            <div class="items-grid" id="organiser-items-grid">
-                <!-- Dynamically populated -->
+            <!-- Found Items Section (Collection Verification) -->
+            <div class="organiser-section">
+                <div class="sub-heading-wrapper" style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 12px;">
+                    <div>
+                        <h2 class="sub-heading" style="margin: 0;">Pending Found Items (Ready for Collection)</h2>
+                        <p class="section-subtitle" style="margin: 4px 0 0; font-size: 0.85rem; color: var(--gray-500);">Physical items held in storage awaiting claimant handover verification</p>
+                    </div>
+                    <span class="badge badge-found" id="count-organiser-found">0 items</span>
+                </div>
+                <div class="items-grid" id="organiser-found-grid">
+                    <!-- Dynamically populated with FOUND items -->
+                </div>
+                <div class="empty-state hidden" id="organiser-found-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <h3>All found items collected!</h3>
+                    <p>There are no found items pending collection at the moment.</p>
+                </div>
             </div>
-            <div class="empty-state hidden" id="organiser-empty">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                <h3>All items collected!</h3>
-                <p>There are no pending items at the moment.</p>
+
+            <!-- Lost Items Section (Reference & Matching) -->
+            <div class="organiser-section" style="margin-top: 40px;">
+                <div class="sub-heading-wrapper" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <div>
+                        <h2 class="sub-heading" style="margin: 0;">Reported Lost Items (Awaiting Match)</h2>
+                        <p class="section-subtitle" style="margin: 4px 0 0; font-size: 0.85rem; color: var(--gray-500);">Items reported lost by students; match against incoming found items</p>
+                    </div>
+                    <span class="badge badge-lost" id="count-organiser-lost">0 items</span>
+                </div>
+                <div class="items-grid" id="organiser-lost-grid">
+                    <!-- Dynamically populated with LOST items -->
+                </div>
+                <div class="empty-state hidden" id="organiser-lost-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <h3>No pending lost items</h3>
+                    <p>There are no active lost item reports awaiting a match.</p>
+                </div>
             </div>
         </section>
     </main>
