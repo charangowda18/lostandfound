@@ -329,9 +329,6 @@ const App = {
         this.bindImageUpload('lost');
         this.bindImageUpload('found');
 
-        // Lost item suggestions on found form
-        this.bindLostItemSuggestions();
-
         // Form reset handlers
         document.getElementById('btn-reset-lost').addEventListener('click', () => {
             setTimeout(() => {
@@ -343,196 +340,8 @@ const App = {
             setTimeout(() => {
                 document.getElementById('found-image-preview').classList.add('hidden');
                 document.getElementById('found-upload-area').classList.remove('hidden');
-                this._clearMatchedItem();
             }, 0);
         });
-    },
-
-    /* ================================================================
-       LOST ITEM SUGGESTIONS (on Report Found form)
-       Shows a live dropdown of existing lost items so the reporter
-       can quickly match what they found to a lost report.
-       ================================================================ */
-
-    _matchedLostItem: null,   // stores the currently selected lost item
-
-    bindLostItemSuggestions() {
-        const input = document.getElementById('found-item-name');
-        const dropdown = document.getElementById('found-suggestions-dropdown');
-        let debounceTimer;
-        let activeIndex = -1;
-
-        // Show suggestions as user types
-        input.addEventListener('input', () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => this._showSuggestions(input.value), 200);
-        });
-
-        // Show all lost items on focus if field is empty
-        input.addEventListener('focus', () => {
-            if (input.value.trim().length === 0) {
-                this._showSuggestions('');
-            }
-        });
-
-        // Keyboard navigation (arrow keys + Enter)
-        input.addEventListener('keydown', (e) => {
-            const items = dropdown.querySelectorAll('.suggestion-item');
-            if (dropdown.classList.contains('hidden') || items.length === 0) return;
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                activeIndex = Math.min(activeIndex + 1, items.length - 1);
-                this._highlightSuggestion(items, activeIndex);
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                activeIndex = Math.max(activeIndex - 1, 0);
-                this._highlightSuggestion(items, activeIndex);
-            } else if (e.key === 'Enter' && activeIndex >= 0) {
-                e.preventDefault();
-                items[activeIndex].click();
-            } else if (e.key === 'Escape') {
-                dropdown.classList.add('hidden');
-                activeIndex = -1;
-            }
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#found-suggestions-wrapper')) {
-                dropdown.classList.add('hidden');
-                activeIndex = -1;
-            }
-        });
-    },
-
-    async _showSuggestions(query) {
-        const dropdown = document.getElementById('found-suggestions-dropdown');
-
-        try {
-            // Fetch only LOST + PENDING items
-            const lostItems = await DataAdapter.getItems({
-                reportType: 'LOST',
-                collectionStatus: 'PENDING',
-            });
-
-            // Filter by query (name match)
-            const q = query.toLowerCase().trim();
-            const matches = q.length === 0
-                ? lostItems.slice(0, 10)  // show first 10 when empty
-                : lostItems.filter(item =>
-                    item.itemName.toLowerCase().includes(q) ||
-                    item.description.toLowerCase().includes(q) ||
-                    item.category.toLowerCase().includes(q)
-                );
-
-            if (matches.length === 0 && q.length > 0) {
-                dropdown.innerHTML = `
-                    <div class="suggestion-header">Reported Lost Items</div>
-                    <div class="suggestion-no-match">
-                        No matching lost items found — you can still type a custom name
-                    </div>`;
-            } else if (matches.length === 0) {
-                dropdown.innerHTML = `
-                    <div class="suggestion-no-match">
-                        No lost items reported yet
-                    </div>`;
-            } else {
-                dropdown.innerHTML = `
-                    <div class="suggestion-header">
-                        ${q.length > 0 ? `${matches.length} matching lost item${matches.length !== 1 ? 's' : ''}` : 'Recently reported lost items'}
-                    </div>
-                    ${matches.map(item => `
-                        <div class="suggestion-item" data-item-id="${item.itemId}">
-                            <div class="suggestion-item-name">
-                                ${escapeHtml(item.itemName)}
-                                <span class="badge badge-lost">Lost</span>
-                                ${item.isDemo ? '<span class="badge badge-demo">Demo</span>' : ''}
-                            </div>
-                            <div class="suggestion-item-meta">
-                                <span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                                    ${escapeHtml(item.category)}
-                                </span>
-                                <span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                    ${escapeHtml(item.location)}
-                                </span>
-                                <span>${formatDate(item.reportDate)}</span>
-                            </div>
-                        </div>
-                    `).join('')}`;
-            }
-
-            // Bind click on each suggestion
-            dropdown.querySelectorAll('.suggestion-item').forEach(el => {
-                el.addEventListener('click', () => {
-                    const itemId = el.dataset.itemId;
-                    const selectedItem = matches.find(i => i.itemId === itemId);
-                    if (selectedItem) this._selectLostItem(selectedItem);
-                });
-            });
-
-            dropdown.classList.remove('hidden');
-        } catch (err) {
-            console.error('[App] Failed to fetch lost items for suggestions:', err);
-        }
-    },
-
-    _highlightSuggestion(items, index) {
-        items.forEach((el, i) => {
-            el.classList.toggle('active', i === index);
-            if (i === index) el.scrollIntoView({ block: 'nearest' });
-        });
-    },
-
-    _selectLostItem(item) {
-        // Auto-fill the found form fields
-        document.getElementById('found-item-name').value = item.itemName;
-        document.getElementById('found-category').value = item.category;
-        document.getElementById('found-description').value = item.description;
-
-        // Store matched item reference
-        this._matchedLostItem = item;
-
-        // Hide dropdown
-        document.getElementById('found-suggestions-dropdown').classList.add('hidden');
-
-        // Show matched banner
-        this._showMatchedBanner(item);
-
-        showToast(`Matched to lost item: "${item.itemName}" — category and description auto-filled!`, 'success');
-    },
-
-    _showMatchedBanner(item) {
-        // Remove existing banner if any
-        this._clearMatchedBanner();
-
-        const wrapper = document.getElementById('found-suggestions-wrapper');
-        const banner = document.createElement('div');
-        banner.className = 'matched-item-banner';
-        banner.id = 'matched-item-banner';
-        banner.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <span>Matched to lost report: <strong>${escapeHtml(item.itemName)}</strong> (${escapeHtml(item.category)}, ${formatDate(item.reportDate)})</span>
-            <button type="button" class="btn-clear-match" id="btn-clear-match">Clear</button>
-        `;
-        wrapper.appendChild(banner);
-
-        // Clear button handler
-        document.getElementById('btn-clear-match').addEventListener('click', () => {
-            this._clearMatchedItem();
-        });
-    },
-
-    _clearMatchedBanner() {
-        const existing = document.getElementById('matched-item-banner');
-        if (existing) existing.remove();
-    },
-
-    _clearMatchedItem() {
-        this._matchedLostItem = null;
-        this._clearMatchedBanner();
     },
 
     bindImageUpload(type) {
@@ -647,9 +456,6 @@ const App = {
             form.reset();
             document.getElementById(`${type}-image-preview`).classList.add('hidden');
             document.getElementById(`${type}-upload-area`).classList.remove('hidden');
-
-            // Clear matched lost item banner (found form only)
-            if (type === 'found') this._clearMatchedItem();
 
             // Set today's date again
             const today = new Date().toISOString().split('T')[0];

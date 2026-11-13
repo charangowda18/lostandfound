@@ -234,16 +234,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="found-item-name">Item Name <span class="required">*</span></label>
-                        <div class="suggestions-wrapper" id="found-suggestions-wrapper">
-                            <input type="text" id="found-item-name" name="itemName" placeholder="Start typing to see matching lost items..." required maxlength="100" autocomplete="off">
-                            <div class="suggestions-dropdown hidden" id="found-suggestions-dropdown">
-                                <!-- Dynamically populated with matching lost items -->
-                            </div>
-                        </div>
-                        <small class="form-hint">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                            Type to see reported lost items — select one to auto-fill details
-                        </small>
+                        <input type="text" id="found-item-name" name="itemName" placeholder="e.g. Helmet, Water Bottle, ID Card..." required maxlength="100">
                         <span class="form-error" id="error-found-item-name"></span>
                     </div>
                     <div class="form-group">
